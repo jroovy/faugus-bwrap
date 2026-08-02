@@ -185,7 +185,7 @@ apply_user() {
 user_mounts=(
 
 # Mount game and storage dirs
-/run/media/$USER
+{,/run}/media/$USER
 $HOME/Games
 
 )
@@ -233,9 +233,6 @@ if [[ $gpu_select == integrated ]]; then
 else
 	select_gpu discrete
 fi
-
-# echo "bwrap args:"
-# echo "${bwrap_args[@]}"
 
 "${pre_launch[@]}" "$bwrap" "${bwrap_args[@]}" "$faugus" && exit
 "${pre_launch[@]}" "$bwrap" "${bwrap_args[@]}" "$faugus" --appimage-extract-and-run && exit
