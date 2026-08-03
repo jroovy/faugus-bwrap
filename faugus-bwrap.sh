@@ -285,7 +285,7 @@ while getopts 'oxwifh' flag; do
 	case $flag in
 		o) bwrap_args+=(--share-net);;
 		x) XDG_SESSION_TYPE=x11;;
-		w) XDG_SESSION_TYPE=wayland; bwrap_args+=(--unsetenv DISPLAY);;
+		w) XDG_SESSION_TYPE=wayland;;
 		i) gpu_select=integrated;;
 		f) full_isolation=1;;
 		h|*) help_msg;;
@@ -310,6 +310,12 @@ if [[ $XDG_SESSION_TYPE == x11 ]]; then
 	bwrap_args+=(
 	--ro-bind-try $XAUTHORITY{,}
 	--ro-bind-try /tmp/.X11-unix/X${DISPLAY##*:}{,}
+	--setenv PROTON_ENABLE_WAYLAND 0
+	)
+elif [[ $XDG_SESSION_TYPE == wayland ]]; then
+	bwrap_args+=(
+	--unsetenv DISPLAY
+	--setenv PROTON_ENABLE_WAYLAND 1
 	)
 fi
 
