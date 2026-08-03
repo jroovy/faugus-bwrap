@@ -312,8 +312,6 @@ else
 	select_gpu discrete
 fi
 
-echo "${bwrap_args[@]}"
-
 # Isolates Faugus with bubblewrap
 # If first command fails, rerun as an appimage
 "${pre_launch[@]}" "$bwrap" "${bwrap_args[@]}" "$faugus" && exit
