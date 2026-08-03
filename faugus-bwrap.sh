@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 script_name="${0##*/}"
 
+# Dynamically assign path values to required binaries
+# instead of hardcoding them
 bwrap=$(command -v bwrap)
 faugus=$(command -v faugus-launcher)
 switcherooctl=$(command -v switcherooctl)
 
+# Store user and group id
 uid=$(id -u)
 gid=$(id -g)
 
+# Define common directory paths for convenience
 home_dir="$HOME/Bubblewrap/Faugus"
 conf_dir="$HOME/.config"
 cache_dir="$HOME/.cache"
 local_dir="$HOME/.local/share"
 local_umu="$home_dir/.local/share/faugus-launcher/umu-run"
 
-# Extra shell options to prevent weird behavior
+# Extra shell options for proper functionality of regexes/expansions
 shopt -s nullglob extglob
 
 # Reset important variables before start
@@ -100,6 +104,7 @@ elif [[ $1 == discrete ]]; then
 	gpu_count=$dgpu_counter
 fi
 
+# Ask user to pick gpus if >1 are found
 if [[ gpu_count -gt 1 ]]; then
 	echo "Multiple gpus detected! Select one:"
 	for (( i=1; i<=gpu_count; i++ )); do
@@ -109,6 +114,7 @@ if [[ gpu_count -gt 1 ]]; then
 	read -r selection
 fi
 
+# Ensure user doesn't pick nonexistent gpu
 if [[ -z "${gpu_names[$gpu_type$selection]}" ]]; then
 	echo "Invalid gpu selection!"
 	exit
@@ -132,7 +138,7 @@ bwrap_args+=(
 --unshare-all
 # --unshare-{user,ipc,pid,uts,cgroup}
 
-# Map user id into sandbox
+# Map user and group id into sandbox
 --uid $uid
 --gid $gid
 
@@ -185,6 +191,8 @@ for i in "${bwrap_mounts[@]}"; do
 done
 }
 
+# User-defined list for custom directories
+# Add/remove directories as you wish
 apply_user() {
 user_mounts=(
 
@@ -207,6 +215,7 @@ apply_user
 mkdir -p $home_dir $conf_dir/faugus-launcher/components \
 $local_dir/{Steam/compatibilitytools.d,umu}
 
+# Parse options given by user
 while getopts 'oxwih' flag; do
 	case $flag in
 		o) bwrap_args+=(--share-net);;
