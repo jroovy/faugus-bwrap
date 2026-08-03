@@ -29,7 +29,9 @@ shopt -s nullglob extglob
 unset bwrap_args user_args pre_launch gpu_select full_isolation
 
 help_msg() {
-echo "Options:
+echo "A script that isolates Faugus and your games from the rest of the system using Bubblewrap
+
+Options:
   -o = Enable network access (online)
   -x = Force use X11
   -w = Force use Wayland
@@ -38,11 +40,9 @@ echo "Options:
   -h = Show this help message
 
 Note:
-In normal mode, the script will use the normal Faugus and Umu dirs in
-$conf_dir and $local_dir.
+In normal mode, the script will use the normal Faugus and Umu dirs in $conf_dir and $local_dir.
 
-In isolation mode (-f), these folders will be separated from the normal dirs,
-and instead located in $sandbox_conf and $sandbox_local.
+In isolation mode (-f), these folders will be separated from the normal dirs, and instead located in $sandbox_conf and $sandbox_local.
 
 Additionally, separated game folders are also mounted in isolation mode.
 (Search for \"isolated_mounts\" inside the script)
