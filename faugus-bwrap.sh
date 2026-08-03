@@ -198,8 +198,9 @@ done
 apply_args
 apply_user
 
-# Create isolated home directory
-mkdir -p $home_dir
+# Create isolated home directory and required shared dirs
+mkdir -p $home_dir $conf_dir/faugus-launcher/components \
+$local_dir/{Steam/compatibilitytools.d,umu}
 
 while getopts 'oxwih' flag; do
 	case $flag in
