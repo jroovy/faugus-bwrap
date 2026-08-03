@@ -171,7 +171,9 @@ bwrap_args+=(
 # Query and set current gtk theme
 --setenv GTK_THEME $(gsettings get org.gnome.desktop.interface gtk-theme | tr -d "'")
 )
+}
 
+apply_required_dirs() {
 # List of directories to mount
 bwrap_mounts=(
 # Bind required devices for gaming
@@ -200,13 +202,15 @@ $local_dir/Steam/compatibilitytools.d
 # Theming support (gtk/qt+kde)
 $conf_dir/{gtk{rc{,-2.0},-{2..4}.0},kdeglobals}
 )
+}
 
+apply_isolation_dirs() {
 # Additional mounts for complete system integration
 integrated_mounts=(
 # Bind additional xdg sockets
 $XDG_RUNTIME_DIR/at-spi/bus_+([0-9])
 
-# Share required dirs for faugus+umu functionality
+# Share required dirs for faugus+umu integration
 $conf_dir/faugus-launcher
 $local_dir/{umu,faugus-launcher}
 )
@@ -236,7 +240,7 @@ done
 # User-defined list of game directories
 # Add/remove/modify them as needed
 # Format: source_dir target_dir
-apply_user_args() {
+apply_user_dirs() {
 
 # Normal mounts are for games you want visible to
 # everything in your home folder
@@ -273,7 +277,7 @@ done
 mkdir -p $home_dir $conf_dir/faugus-launcher/components \
 $local_dir/{Steam/compatibilitytools.d,umu}
 
-# Apply required directory bind lists
+# Apply required bwrap options
 apply_required_args
 
 # Parse options given by user
@@ -289,8 +293,10 @@ while getopts 'oxwifh' flag; do
 done
 shift $((OPTIND - 1))
 
-# Apply user-defined bind lists
-apply_user_args
+# Apply dirs required for sandbox functionality
+apply_required_dirs
+apply_isolation_dirs
+apply_user_dirs
 
 # Check if umu is available
 if [[ -n $umu ]]; then
