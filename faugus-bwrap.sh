@@ -3,6 +3,7 @@ script_name="${0##*/}"
 
 # Dynamically assign path values to required binaries
 # instead of hardcoding them
+umu=$(command -v umu-run)
 bwrap=$(command -v bwrap)
 faugus=$(command -v faugus-launcher)
 switcherooctl=$(command -v switcherooctl)
@@ -17,12 +18,15 @@ conf_dir="$HOME/.config"
 cache_dir="$HOME/.cache"
 local_dir="$HOME/.local/share"
 local_umu="$home_dir/.local/share/faugus-launcher/umu-run"
+sandbox_umu="$local_dir/faugus-launcher/umu-run"
+sandbox_conf="$home_dir/.config"
+sandbox_local="$home_dir/.local/share"
 
 # Extra shell options for proper functionality of regexes/expansions
 shopt -s nullglob extglob
 
 # Reset important variables before start
-unset bwrap_args pre_launch gpu_select
+unset bwrap_args user_args pre_launch gpu_select full_isolation
 
 help_msg() {
 echo "Options:
@@ -30,7 +34,18 @@ echo "Options:
   -x = Force use X11
   -w = Force use Wayland
   -i = Use integrated graphics
+  -f = Run games in full isolation
   -h = Show this help message
+
+Note:
+In normal mode, the script will use the normal Faugus and Umu dirs in
+$conf_dir and $local_dir.
+
+In isolation mode (-f), these folders will be separated from the normal dirs,
+and instead located in $sandbox_conf and $sandbox_local.
+
+Additionally, separated game folders are also mounted in isolation mode.
+(Search for \"isolated_mounts\" inside the script)
 
 Usage:
 $script_name <options>"
@@ -90,6 +105,7 @@ done < <($switcherooctl list 2> /dev/null)
 }
 
 select_gpu() {
+# Find available gpus before running the picker
 find_gpus
 
 # Pick first gpu by default
@@ -104,7 +120,7 @@ elif [[ $1 == discrete ]]; then
 	gpu_count=$dgpu_counter
 fi
 
-# Ask user to pick gpus if >1 are found
+# Ask user to pick a gpu if >1 are found
 if [[ gpu_count -gt 1 ]]; then
 	echo "Multiple gpus detected! Select one:"
 	for (( i=1; i<=gpu_count; i++ )); do
@@ -170,67 +186,113 @@ bwrap_mounts=(
 
 # Bind required user xdg sockets
 $XDG_RUNTIME_DIR/\
-{bus,{at-spi/bus_,pipewire-}+([0-9]),pulse/native,$WAYLAND_DISPLAY}
+{bus,pipewire-+([0-9]),pulse/native,$WAYLAND_DISPLAY}
+
+# Include faugus and umu binaries outside /usr/bin
+{/usr/local/bin,$HOME/.local/bin}/{faugus-launcher,umu-run}
+
+# Required bind for mangohud functionality
+$conf_dir/MangoHud/MangoHud.conf
+
+# Required bind for proton functionality
+$local_dir/Steam/compatibilitytools.d
 
 # Theming support (gtk/qt+kde)
 $conf_dir/{gtk{rc{,-2.0},-{2..4}.0},kdeglobals}
+)
+
+# Additional mounts for complete system integration
+integrated_mounts=(
+# Bind additional xdg sockets
+$XDG_RUNTIME_DIR/at-spi/bus_+([0-9])
 
 # Share required dirs for faugus+umu functionality
-$conf_dir/{faugus-launcher/components,Mangohud}
-$local_dir/{Steam/compatibilitytools.d,umu}
+$conf_dir/faugus-launcher
+$local_dir/{umu,faugus-launcher}
 )
+
+# Add integrated mounts if user requests it
+if [[ full_isolation -eq 0 ]]; then
+	bwrap_mounts+=("${integrated_mounts[@]}")
+	local_regex="$local_dir/*"
+else
+	local_regex="$local_dir/!([Ss]team*)"
+fi
+
+conf_regex="$conf_dir/!(MangoHud*|gtk*|kde*|qt*)"
 
 # Add mountpoints to bwrap_args
 for i in "${bwrap_mounts[@]}"; do
 	case "$i" in
 		/dev/*) bwrap_args+=(--dev-bind-try);;
-		$conf_dir/faugus-*|$local_dir/umu?(/*)) bwrap_args+=(--bind-try);;
+		$conf_regex|$local_regex)
+			bwrap_args+=(--bind-try);;
 		*) bwrap_args+=(--ro-bind-try);;
 	esac
 	bwrap_args+=("$i"{,})
 done
 }
 
-# User-defined list for custom directories
-# Add/remove directories as you wish
+# User-defined list of game directories
+# Add/remove/modify them as needed
+# Format: source_dir target_dir
 apply_user() {
-user_mounts=(
 
-# Mount game and storage dirs
-{,/run}/media/$USER
-$HOME/Games
-
+# Normal mounts are for games you want visible to
+# everything in your home folder
+normal_mounts=(
+$HOME/{Games,Faugus}{,}
 )
 
-for i in "${user_mounts[@]}"; do
-	bwrap_args+=(--bind-try "$i"{,})
+# Isolated mounts are for games you want isolated
+# from the rest of your home folder
+isolated_mounts=(
+$HOME/Games{/.isolated,}
+)
+
+# Shared mounts are for you want accessible on both
+# e.g., removable drives
+shared_mounts=(
+{,/run}/media/$USER{,}
+)
+
+if [[ full_isolation -eq 1 ]]; then
+	user_args=("${isolated_mounts[@]}")
+else
+	user_args=("${normal_mounts[@]}")
+fi
+user_args+=("${shared_mounts[@]}")
+
+# Add user-defined mounts to final bwrap args
+for ((i=0; i<${#user_args[@]}; i++)); do
+	bwrap_args+=(--bind-try "${user_args[i]}" "${user_args[i+=1]}")
 done
 }
-
-# Apply the directory bind lists
-apply_args
-apply_user
 
 # Create isolated home directory and required shared dirs
 mkdir -p $home_dir $conf_dir/faugus-launcher/components \
 $local_dir/{Steam/compatibilitytools.d,umu}
 
 # Parse options given by user
-while getopts 'oxwih' flag; do
+while getopts 'oxwifh' flag; do
 	case $flag in
 		o) bwrap_args+=(--share-net);;
 		x) XDG_SESSION_TYPE=x11;;
 		w) XDG_SESSION_TYPE=wayland; bwrap_args+=(--unsetenv DISPLAY);;
 		i) gpu_select=integrated;;
+		f) full_isolation=1;;
 		h|*) help_msg;;
 	esac
 done
 shift $((OPTIND - 1))
 
+# Apply the directory bind lists
+apply_args
+apply_user
+
 # Check if umu is available
-umu=$(command -v umu-run)
 if [[ -n $umu ]]; then
-	bwrap_args+=(--ro-bind-try $umu $local_dir/faugus-launcher/${umu##*/})
+	bwrap_args+=(--ro-bind-try $umu $sandbox_umu)
 elif [[ ! -s $local_umu ]]; then
 	rm -f $local_umu
 fi
@@ -243,11 +305,14 @@ if [[ $XDG_SESSION_TYPE == x11 ]]; then
 	)
 fi
 
+# Select gpu based on user's choice
 if [[ $gpu_select == integrated ]]; then
 	select_gpu integrated
 else
 	select_gpu discrete
 fi
+
+echo "${bwrap_args[@]}"
 
 # Isolates Faugus with bubblewrap
 # If first command fails, rerun as an appimage
