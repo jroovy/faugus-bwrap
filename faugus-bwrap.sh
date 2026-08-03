@@ -3,7 +3,7 @@ script_name="${0##*/}"
 
 bwrap=$(command -v bwrap)
 faugus=$(command -v faugus-launcher)
-switcheroo=$(command -v switcherooctl)
+switcherooctl=$(command -v switcherooctl)
 
 uid=$(id -u)
 gid=$(id -g)
@@ -41,7 +41,7 @@ declare -Ag gpu_names
 # Clear values before scanning for gpus
 unset gpu_type gpu_name gpu_id
 
-# Starting values to assign to found gpus
+# Initial values to assign to found gpus
 igpu_counter=0
 dgpu_counter=0
 has_nvidia=0
@@ -82,11 +82,13 @@ while IFS= read -r line; do
 		fi
 		unset gpu_type gpu_name gpu_id
 	fi
-done < <($switcheroo list 2> /dev/null)
+done < <($switcherooctl list 2> /dev/null)
 }
 
 select_gpu() {
 find_gpus
+
+# Pick first gpu by default
 selection=1
 
 # Silently switch to igpu if no dgpus are found
@@ -112,8 +114,10 @@ if [[ -z "${gpu_names[$gpu_type$selection]}" ]]; then
 	exit
 fi
 
+# Hybrid Nvidia systems ignores the DRI_PRIME variable
+# Likewise, Intel/AMD combinations ignores switcherooctl
 if [[ has_nvidia -eq 1 ]]; then
-	pre_launch+=($switcheroo launch --gpu=${gpu_ids[$gpu_type$selection]})
+	pre_launch+=($switcherooctl launch --gpu=${gpu_ids[$gpu_type$selection]})
 else
 	bwrap_args+=(--setenv DRI_PRIME "${gpu_ids[$gpu_type$selection]}!")
 fi
@@ -195,6 +199,7 @@ for i in "${user_mounts[@]}"; do
 done
 }
 
+# Apply the directory bind lists
 apply_args
 apply_user
 
@@ -235,5 +240,7 @@ else
 	select_gpu discrete
 fi
 
+# Isolates Faugus with bubblewrap
+# If first command fails, rerun as an appimage
 "${pre_launch[@]}" "$bwrap" "${bwrap_args[@]}" "$faugus" && exit
 "${pre_launch[@]}" "$bwrap" "${bwrap_args[@]}" "$faugus" --appimage-extract-and-run && exit
