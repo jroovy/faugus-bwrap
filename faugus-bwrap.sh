@@ -145,7 +145,7 @@ else
 fi
 }
 
-apply_args() {
+apply_required_args() {
 # Apply initial args
 bwrap_args+=(
 --die-with-parent
@@ -236,7 +236,7 @@ done
 # User-defined list of game directories
 # Add/remove/modify them as needed
 # Format: source_dir target_dir
-apply_user() {
+apply_user_args() {
 
 # Normal mounts are for games you want visible to
 # everything in your home folder
@@ -273,6 +273,9 @@ done
 mkdir -p $home_dir $conf_dir/faugus-launcher/components \
 $local_dir/{Steam/compatibilitytools.d,umu}
 
+# Apply required directory bind lists
+apply_required_args
+
 # Parse options given by user
 while getopts 'oxwifh' flag; do
 	case $flag in
@@ -286,9 +289,8 @@ while getopts 'oxwifh' flag; do
 done
 shift $((OPTIND - 1))
 
-# Apply the directory bind lists
-apply_args
-apply_user
+# Apply user-defined bind lists
+apply_user_args
 
 # Check if umu is available
 if [[ -n $umu ]]; then
