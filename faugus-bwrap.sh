@@ -13,7 +13,7 @@ uid=$(id -u)
 gid=$(id -g)
 
 # Define common directory paths for convenience
-home_dir="$HOME/Bubblewrap/Faugus"
+home_dir="$HOME/.bwrap/Faugus"
 conf_dir="$HOME/.config"
 cache_dir="$HOME/.cache"
 local_dir="$HOME/.local/share"
@@ -153,7 +153,6 @@ bwrap_args+=(
 
 # Exclude unnecessary namespaces
 --unshare-all
-# --unshare-{user,ipc,pid,uts,cgroup}
 
 # Map user and group id into sandbox
 --uid $uid
@@ -223,7 +222,7 @@ isolated_mounts=(
 --tmp-overlay $local_dir/umu
 )
 
-# Add integrated mounts if user requests it
+# Add isolated mounts if user requests it
 if [[ full_isolation -eq 0 ]]; then
 	bwrap_mounts+=("${integrated_mounts[@]}")
 	local_regex="$local_dir/*"
@@ -248,7 +247,7 @@ done
 
 # User-defined list of game directories
 # Add/remove/modify them as needed
-# Format: source_dir target_dir
+# Format: source_dir destination_dir
 apply_user_dirs() {
 
 # Normal mounts are for games you want visible to
@@ -260,6 +259,7 @@ $HOME/{Games,Faugus}{,}
 # Isolated mounts are for games you want isolated
 # from the rest of your home folder
 isolated_mounts=(
+$HOME/Faugus{/.isolated,}
 $HOME/Games{/.isolated,}
 )
 
@@ -303,7 +303,7 @@ while getopts 'oxwifvh' flag; do
 done
 shift $((OPTIND - 1))
 
-# Apply dirs required for sandbox functionality
+# Bind dirs required for sandbox functionality
 apply_required_dirs
 apply_isolation_dirs
 apply_user_dirs
