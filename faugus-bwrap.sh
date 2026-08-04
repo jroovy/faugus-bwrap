@@ -26,7 +26,7 @@ sandbox_local="$home_dir/.local/share"
 shopt -s nullglob extglob
 
 # Reset important variables before start
-unset bwrap_args user_args pre_launch gpu_select full_isolation
+unset bwrap_args user_args pre_launch gpu_select full_isolation verbose_args
 
 help_msg() {
 echo "A script that isolates Faugus and your games from the rest of the system using Bubblewrap
@@ -37,6 +37,7 @@ Options:
   -w = Force use Wayland
   -i = Use integrated graphics
   -f = Run games in full isolation
+  -v = Print launch arguments (verbose)
   -h = Show this help message
 
 Note:
@@ -215,12 +216,20 @@ $conf_dir/faugus-launcher
 $local_dir/{umu,faugus-launcher}
 )
 
+# Required mounts for isolation mode
+isolated_mounts=(
+# Mount steamrt dir as readonly with overlayfs
+--overlay-src $local_dir/umu
+--tmp-overlay $local_dir/umu
+)
+
 # Add integrated mounts if user requests it
 if [[ full_isolation -eq 0 ]]; then
 	bwrap_mounts+=("${integrated_mounts[@]}")
 	local_regex="$local_dir/*"
 else
 	local_regex="$local_dir/!([Ss]team*)"
+	bwrap_args+=("${isolated_mounts[@]}")
 fi
 
 conf_regex="$conf_dir/!(MangoHud*|gtk*|kde*|qt*)"
@@ -281,13 +290,14 @@ $local_dir/{Steam/compatibilitytools.d,umu}
 apply_required_args
 
 # Parse options given by user
-while getopts 'oxwifh' flag; do
+while getopts 'oxwifvh' flag; do
 	case $flag in
 		o) bwrap_args+=(--share-net);;
 		x) XDG_SESSION_TYPE=x11;;
 		w) XDG_SESSION_TYPE=wayland;;
 		i) gpu_select=integrated;;
 		f) full_isolation=1;;
+		v) verbose_args=1;;
 		h|*) help_msg;;
 	esac
 done
@@ -324,6 +334,17 @@ if [[ $gpu_select == integrated ]]; then
 	select_gpu integrated
 else
 	select_gpu discrete
+fi
+
+if [[ verbose_args -eq 1 ]]; then
+	echo "=== PRELAUNCH ARGS ==="
+	echo "${pre_launch[@]}"
+	echo -e "\n=== BWRAP ARGS ==="
+	echo "${bwrap_args[@]}"
+	echo -e "\n=== LAUNCH ARGS (BINARY) ==="
+	echo "\${pre_launch[@]} $bwrap \${bwrap_args[@]} $faugus && exit"
+	echo -e "\n=== LAUNCH ARGS (APPIMAGE) ==="
+	echo "\${pre_launch[@]} $bwrap \${bwrap_args[@]} $faugus --appimage-extract-and-run && exit"
 fi
 
 # Isolates Faugus with bubblewrap
