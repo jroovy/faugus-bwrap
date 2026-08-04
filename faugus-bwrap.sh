@@ -336,6 +336,7 @@ else
 	select_gpu discrete
 fi
 
+# Print launch args if enabled
 if [[ verbose_args -eq 1 ]]; then
 	echo "=== PRELAUNCH ARGS ==="
 	echo "${pre_launch[@]}"
