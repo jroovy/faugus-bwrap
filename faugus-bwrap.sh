@@ -346,6 +346,7 @@ if [[ verbose_args -eq 1 ]]; then
 	echo "\${pre_launch[@]} $bwrap \${bwrap_args[@]} $faugus && exit"
 	echo -e "\n=== LAUNCH ARGS (APPIMAGE) ==="
 	echo "\${pre_launch[@]} $bwrap \${bwrap_args[@]} $faugus --appimage-extract-and-run && exit"
+	echo ""
 fi
 
 # Isolates Faugus with bubblewrap
