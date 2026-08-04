@@ -338,10 +338,10 @@ fi
 
 # Print launch args if enabled
 if [[ verbose_args -eq 1 ]]; then
-	echo "=== PRELAUNCH ARGS ==="
-	echo "${pre_launch[@]}"
 	echo -e "\n=== BWRAP ARGS ==="
 	echo "${bwrap_args[@]}"
+	echo "=== PRELAUNCH ARGS ==="
+	echo "${pre_launch[@]}"
 	echo -e "\n=== LAUNCH ARGS (BINARY) ==="
 	echo "\${pre_launch[@]} $bwrap \${bwrap_args[@]} $faugus && exit"
 	echo -e "\n=== LAUNCH ARGS (APPIMAGE) ==="
