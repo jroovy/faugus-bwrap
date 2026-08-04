@@ -64,7 +64,6 @@ unset gpu_type gpu_name gpu_id
 # Initial values to assign to found gpus
 igpu_counter=0
 dgpu_counter=0
-has_nvidia=0
 
 while IFS= read -r line; do
 	# Find gpu ID number
@@ -84,9 +83,6 @@ while IFS= read -r line; do
 	# Get the gpu name
 	if [[ "$line" =~ Name:[[:space:]]*(.+) ]]; then
 		gpu_name="${BASH_REMATCH[1]}"
-		if [[ "$gpu_name" =~ NVIDIA ]]; then
-			has_nvidia=1
-		fi
 	fi
 
 	# Add gathered values to the gpu lists
@@ -137,13 +133,9 @@ if [[ -z "${gpu_names[$gpu_type$selection]}" ]]; then
 	exit
 fi
 
-# Hybrid Nvidia systems ignores the DRI_PRIME variable
-# Likewise, Intel/AMD combinations ignores switcherooctl
-if [[ has_nvidia -eq 1 ]]; then
-	pre_launch+=($switcherooctl launch --gpu=${gpu_ids[$gpu_type$selection]})
-else
-	bwrap_args+=(--setenv DRI_PRIME "${gpu_ids[$gpu_type$selection]}!")
-fi
+# Use the selected gpu for rendering games
+pre_launch+=($switcherooctl launch --gpu=${gpu_ids[$gpu_type$selection]})
+bwrap_args+=(--setenv DRI_PRIME "${gpu_ids[$gpu_type$selection]}!")
 }
 
 apply_required_args() {
@@ -173,9 +165,9 @@ bwrap_args+=(
 )
 }
 
-apply_required_dirs() {
+define_required_dirs() {
 # List of directories to mount
-bwrap_mounts=(
+required_mounts=(
 # Bind required devices for gaming
 /dev/{{,u}input,shm,ntsync,snd,dri,hidraw*,nvidia*}
 
@@ -204,7 +196,7 @@ $conf_dir/{gtk{rc{,-2.0},-{2..4}.0},kdeglobals}
 )
 }
 
-apply_isolation_dirs() {
+define_isolation_dirs() {
 # Additional mounts for complete system integration
 integrated_mounts=(
 # Bind additional xdg sockets
@@ -221,20 +213,55 @@ isolated_mounts=(
 --overlay-src $local_dir/umu
 --tmp-overlay $local_dir/umu
 )
+}
 
-# Add isolated mounts if user requests it
-if [[ full_isolation -eq 0 ]]; then
-	bwrap_mounts+=("${integrated_mounts[@]}")
-	local_regex="$local_dir/*"
-else
+# User-defined list of game directories
+# Add/remove/modify them as needed
+# Format: source_dir destination_dir
+define_user_dirs() {
+
+# Normal mounts are for games you want visible to
+# everything in your home folder
+normal_user_mounts=(
+$HOME/{Games,Faugus}{,}
+)
+
+# Isolated mounts are for games you want isolated
+# from the rest of your home folder
+isolated_user_mounts=(
+$HOME/Faugus{/.isolated,}
+$HOME/Games{/.isolated,}
+)
+
+# Shared mounts are for games you want accessible on both modes
+# e.g., removable drives
+shared_user_mounts=(
+{,/run}/media/$USER{,}
+)
+}
+
+apply_defined_dirs() {
+# Apply required args
+apply_required_args
+
+# Load defined dirs
+define_required_dirs
+define_isolation_dirs
+define_user_dirs
+
+# Add required isolated mounts
+if [[ full_isolation -eq 1 ]]; then
 	local_regex="$local_dir/!([Ss]team*)"
-	bwrap_args+=("${isolated_mounts[@]}")
+	required_mounts+=("${isolated_mounts[@]}")
+else
+	local_regex="$local_dir/*"
+	required_mounts+=("${integrated_mounts[@]}")
 fi
 
 conf_regex="$conf_dir/!(MangoHud*|gtk*|kde*|qt*)"
 
-# Add mountpoints to bwrap_args
-for i in "${bwrap_mounts[@]}"; do
+# Add required mounts to bwrap_args
+for i in "${required_mounts[@]}"; do
 	case "$i" in
 		/dev/*) bwrap_args+=(--dev-bind-try);;
 		$conf_regex|$local_regex)
@@ -243,38 +270,14 @@ for i in "${bwrap_mounts[@]}"; do
 	esac
 	bwrap_args+=("$i"{,})
 done
-}
 
-# User-defined list of game directories
-# Add/remove/modify them as needed
-# Format: source_dir destination_dir
-apply_user_dirs() {
-
-# Normal mounts are for games you want visible to
-# everything in your home folder
-normal_mounts=(
-$HOME/{Games,Faugus}{,}
-)
-
-# Isolated mounts are for games you want isolated
-# from the rest of your home folder
-isolated_mounts=(
-$HOME/Faugus{/.isolated,}
-$HOME/Games{/.isolated,}
-)
-
-# Shared mounts are for you want accessible on both
-# e.g., removable drives
-shared_mounts=(
-{,/run}/media/$USER{,}
-)
-
+# Add user-defined isolated mounts
 if [[ full_isolation -eq 1 ]]; then
-	user_args=("${isolated_mounts[@]}")
+	user_args=("${isolated_user_mounts[@]}")
 else
-	user_args=("${normal_mounts[@]}")
+	user_args=("${normal_user_mounts[@]}")
 fi
-user_args+=("${shared_mounts[@]}")
+user_args+=("${shared_user_mounts[@]}")
 
 # Add user-defined mounts to final bwrap args
 for ((i=0; i<${#user_args[@]}; i++)); do
@@ -285,9 +288,6 @@ done
 # Create isolated home directory and required shared dirs
 mkdir -p $home_dir $conf_dir/faugus-launcher/components \
 $local_dir/{Steam/compatibilitytools.d,umu}
-
-# Apply required bwrap options
-apply_required_args
 
 # Parse options given by user
 while getopts 'oxwifvh' flag; do
@@ -304,9 +304,7 @@ done
 shift $((OPTIND - 1))
 
 # Bind dirs required for sandbox functionality
-apply_required_dirs
-apply_isolation_dirs
-apply_user_dirs
+apply_defined_dirs
 
 # Check if umu is available
 if [[ -n $umu ]]; then
@@ -338,9 +336,9 @@ fi
 
 # Print launch args if enabled
 if [[ verbose_args -eq 1 ]]; then
-	echo -e "\n=== BWRAP ARGS ==="
+	echo -e "=== BWRAP ARGS ==="
 	echo "${bwrap_args[@]}"
-	echo "=== PRELAUNCH ARGS ==="
+	echo -e "\n=== PRELAUNCH ARGS ==="
 	echo "${pre_launch[@]}"
 	echo -e "\n=== LAUNCH ARGS (BINARY) ==="
 	echo "\${pre_launch[@]} $bwrap \${bwrap_args[@]} $faugus && exit"
