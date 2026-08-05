@@ -15,7 +15,7 @@ gid=$(id -g)
 # Warn when running as root
 if [[ $uid -eq 0 || $gid -eq 0 ]]; then
 	echo "WARNING: Running as root will fully expose device files!"
-	echo -e "Continue? (y/n)\n> "
+	echo -ne "Continue? (y/n)\n> "
 	read -r i
 	if [[ $i != y ]]; then
 		exit
