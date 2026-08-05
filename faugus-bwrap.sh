@@ -37,7 +37,7 @@ shopt -s nullglob extglob
 
 # Reset important variables before start
 unset bwrap_args user_args pre_launch gpu_select \
-full_isolation verbose_args net_access
+full_isolation verbose_args net_access create_dirs
 
 help_msg() {
 echo "A script that isolates Faugus and your games from the rest of the system using Bubblewrap
@@ -48,6 +48,7 @@ Options:
   -w = Force use Wayland
   -i = Use integrated graphics
   -f = Run games in full isolation
+  -c = Create user-defined directories that don't exist yet
   -v = Print launch arguments (verbose)
   -h = Show this help message
 
@@ -154,14 +155,14 @@ apply_required_args() {
 bwrap_args+=(
 --die-with-parent
 
-# Exclude unnecessary namespaces
+# Unshare unnecessary namespaces
 --unshare-{user,ipc,pid,uts,cgroup}
 
 # Map user and group id into sandbox
 --uid $uid
 --gid $gid
 
-# Create basic dev structure
+# Create basic sandbox structure
 --dev /dev
 --proc /proc
 
@@ -251,6 +252,27 @@ shared_user_mounts=(
 )
 }
 
+create_user_dirs() {
+full_dir_list=(
+"${normal_user_mounts[@]}"
+"${isolated_user_mounts[@]}"
+"${shared_user_mounts[@]}"
+)
+
+# Create dirs if they don't exist yet
+for (( i=0; i<${#full_dir_list[@]}; i+=2 )); do
+	current_dir="${full_dir_list[i]}"
+	if [[ "$current_dir" =~ ^((/(run/)?media/[^/]+/[^/]+)) ]]; then
+		echo "${BASH_REMATCH[1]}"
+		if [[ -d "${BASH_REMATCH[1]}" ]]; then
+			mkdir -p "$current_dir"
+		fi
+	else
+		mkdir -p "$current_dir"
+	fi
+done 2> /dev/null
+}
+
 apply_defined_dirs() {
 # Apply required args
 apply_required_args
@@ -301,13 +323,14 @@ mkdir -p $home_dir $conf_dir/faugus-launcher/components \
 $local_dir/{Steam/compatibilitytools.d,umu}
 
 # Parse options given by user
-while getopts 'oxwifvh' flag; do
+while getopts 'oxwifcvh' flag; do
 	case $flag in
 		o) net_access=1;;
 		x) XDG_SESSION_TYPE=x11;;
 		w) XDG_SESSION_TYPE=wayland;;
 		i) gpu_select=integrated;;
 		f) full_isolation=1;;
+		c) create_dirs=1;;
 		v) verbose_args=1;;
 		h|*) help_msg;;
 	esac
@@ -348,6 +371,11 @@ if [[ $gpu_select == integrated ]]; then
 	select_gpu integrated
 else
 	select_gpu discrete
+fi
+
+# Create defined dirs that don't exist yet
+if [[ $create_dirs -eq 1 ]]; then
+	create_user_dirs
 fi
 
 # Print launch args if enabled
