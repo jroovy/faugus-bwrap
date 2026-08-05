@@ -12,6 +12,16 @@ switcherooctl=$(command -v switcherooctl)
 uid=$(id -u)
 gid=$(id -g)
 
+# Warn when running as root
+if [[ $uid -eq 0 || $gid -eq 0 ]]; then
+	echo "WARNING: Running as root will fully expose device files!"
+	echo -e "Continue? (y/n)\n> "
+	read -r i
+	if [[ $i != y ]]; then
+		exit
+	fi
+fi
+
 # Define common directory paths for convenience
 home_dir="$HOME/.bwrap/Faugus"
 conf_dir="$HOME/.config"
@@ -109,7 +119,7 @@ find_gpus
 selection=1
 
 # Silently switch to igpu if no dgpus are found
-if [[ dgpu_counter -eq 0 || $1 == integrated ]]; then
+if [[ $dgpu_counter -eq 0 || $1 == integrated ]]; then
 	gpu_type=i
 	gpu_count=$igpu_counter
 elif [[ $1 == discrete ]]; then
@@ -118,7 +128,7 @@ elif [[ $1 == discrete ]]; then
 fi
 
 # Ask user to pick a gpu if >1 are found
-if [[ gpu_count -gt 1 ]]; then
+if [[ $gpu_count -gt 1 ]]; then
 	echo "Multiple gpus detected! Select one:"
 	for (( i=1; i<=gpu_count; i++ )); do
 		echo "$i) ${gpu_names[$gpu_type$i]}"
@@ -250,7 +260,7 @@ define_isolation_dirs
 define_user_dirs
 
 # Add required isolated mounts
-if [[ full_isolation -eq 1 ]]; then
+if [[ $full_isolation -eq 1 ]]; then
 	local_regex="$local_dir/!([Ss]team*)"
 	required_mounts+=("${isolated_mounts[@]}")
 else
@@ -272,7 +282,7 @@ for i in "${required_mounts[@]}"; do
 done
 
 # Add user-defined isolated mounts
-if [[ full_isolation -eq 1 ]]; then
+if [[ $full_isolation -eq 1 ]]; then
 	user_args=("${isolated_user_mounts[@]}")
 else
 	user_args=("${normal_user_mounts[@]}")
@@ -280,7 +290,7 @@ fi
 user_args+=("${shared_user_mounts[@]}")
 
 # Add user-defined mounts to final bwrap args
-for ((i=0; i<${#user_args[@]}; i++)); do
+for (( i=0; i<${#user_args[@]}; i++ )); do
 	bwrap_args+=(--bind-try "${user_args[i]}" "${user_args[i+=1]}")
 done
 }
@@ -335,7 +345,7 @@ else
 fi
 
 # Print launch args if enabled
-if [[ verbose_args -eq 1 ]]; then
+if [[ $verbose_args -eq 1 ]]; then
 	echo -e "=== BWRAP ARGS ==="
 	echo "${bwrap_args[@]}"
 	echo -e "\n=== PRELAUNCH ARGS ==="
