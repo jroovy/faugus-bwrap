@@ -36,7 +36,8 @@ sandbox_local="$home_dir/.local/share"
 shopt -s nullglob extglob
 
 # Reset important variables before start
-unset bwrap_args user_args pre_launch gpu_select full_isolation verbose_args
+unset bwrap_args user_args pre_launch gpu_select \
+full_isolation verbose_args net_access
 
 help_msg() {
 echo "A script that isolates Faugus and your games from the rest of the system using Bubblewrap
@@ -154,7 +155,7 @@ bwrap_args+=(
 --die-with-parent
 
 # Exclude unnecessary namespaces
---unshare-all
+--unshare-{user,ipc,pid,uts,cgroup}
 
 # Map user and group id into sandbox
 --uid $uid
@@ -302,7 +303,7 @@ $local_dir/{Steam/compatibilitytools.d,umu}
 # Parse options given by user
 while getopts 'oxwifvh' flag; do
 	case $flag in
-		o) bwrap_args+=(--share-net);;
+		o) net_access=1;;
 		x) XDG_SESSION_TYPE=x11;;
 		w) XDG_SESSION_TYPE=wayland;;
 		i) gpu_select=integrated;;
@@ -315,6 +316,11 @@ shift $((OPTIND - 1))
 
 # Bind dirs required for sandbox functionality
 apply_defined_dirs
+
+# Grant/deny network access
+if [[ $net_access -eq 0 ]]; then
+	bwrap_args+=(--unshare-net)
+fi
 
 # Check if umu is available
 if [[ -n $umu ]]; then
