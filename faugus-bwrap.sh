@@ -362,8 +362,8 @@ if [[ $net_access -eq 0 ]]; then
 fi
 
 # Check if umu is available
-if [[ -n $umu ]]; then
-	bwrap_args+=(--ro-bind-try $umu $sandbox_umu)
+if [[ -n ${binary_list[umu-run]} ]]; then
+	bwrap_args+=(--ro-bind-try ${binary_list[umu-run]} $sandbox_umu)
 elif [[ ! -s $local_umu ]]; then
 	rm -f $local_umu
 fi
