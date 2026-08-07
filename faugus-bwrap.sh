@@ -80,7 +80,7 @@ declare -Ag gpu_ids
 declare -Ag gpu_names
 
 # Clear values before scanning for gpus
-unset gpu_type gpu_name gpu_id
+unset gpu_type gpu_name gpu_id has_nvidia
 
 # Initial values to assign to found gpus
 igpu_counter=0
