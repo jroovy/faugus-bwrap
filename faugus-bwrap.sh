@@ -98,7 +98,7 @@ while IFS= read -r line; do
 	fi
 
 	# Add gathered values to the gpu lists
-	if [[ -n $gpu_id && -n $gpu_type && -n $gpu_name ]]; then
+	if [[ -n $gpu_type && -n $gpu_name && -n $gpu_id ]]; then
 		if [[ $gpu_type == i ]]; then
 			(( igpu_counter++ ))
 			gpu_ids["i$igpu_counter"]=$gpu_id
