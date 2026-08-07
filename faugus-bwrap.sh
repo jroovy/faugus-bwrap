@@ -399,6 +399,12 @@ if [[ $create_dirs -eq 1 ]]; then
 	create_user_dirs
 fi
 
+# Warn user that igpu might not work on nvidia systems
+# without switcherooctl
+if [[ -z "${binary_list[switcherooctl]}" && $has_nvidia -eq 1 && $gpu_select == integrated ]]; then
+	echo "NOTE: iGPU might not work on NVIDIA systems without switcherooctl"
+fi
+
 # Print launch args if enabled
 if [[ $verbose_args -eq 1 ]]; then
 	echo -e "=== BWRAP ARGS ==="
