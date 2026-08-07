@@ -160,8 +160,13 @@ fi
 # Use the selected gpu for rendering games
 if [[ $tool_type == switcherooctl ]]; then
 	pre_launch+=(${binary_list[switcherooctl]} launch --gpu=${gpu_ids[$gpu_type$selection]})
-elif [[ $tool_type == vulkaninfo && $has_nvidia -eq 1 && gpu_type == i ]]; then
-	bwrap_args+=(--setenv __NV_PRIME_RENDER_OFFLOAD 0)
+elif [[ $tool_type == vulkaninfo && $has_nvidia -eq 1 ]]; then
+	bwrap_args+=(--setenv __NV_PRIME_RENDER_OFFLOAD)
+	if [[ $gpu_type == i ]]; then
+		bwrap_args+=(0)
+	else
+		bwrap_args+=(1)
+	fi
 fi
 bwrap_args+=(--setenv DRI_PRIME "${gpu_ids[$gpu_type$selection]}!")
 }
