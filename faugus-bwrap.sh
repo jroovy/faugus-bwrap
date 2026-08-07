@@ -1,26 +1,22 @@
 #!/usr/bin/env bash
 script_name="${0##*/}"
 
-# Dynamically assign path values to required binaries
-# instead of hardcoding them
-declare -Ag binary_list
-for i in umu-run bwrap faugus-launcher switcherooctl vulkaninfo; do
-	binary_list[$i]=$(command -v $i)
-done
+# Define binary names
+binary_name=(
+umu-run bwrap faugus-launcher switcherooctl vulkaninfo
+)
+declare -Ag binary_status
+binary_status[umu-run]=o; binary_status[bwrap]=r;
+binary_status[faugus-launcher]=r; binary_status[switcherooctl]=o;
+binary_status[vulkaninfo]=o;
 
-# Store user and group id
-uid=$(id -u)
-gid=$(id -g)
-
-# Warn when running as root
-if [[ $uid -eq 0 || $gid -eq 0 ]]; then
-	echo "WARNING: Running as root will fully expose device files!"
-	echo -ne "Continue? (y/n)\n> "
-	read -r i
-	if [[ $i != y ]]; then
-		exit
-	fi
-fi
+# Define binary descriptions
+declare -Ag binary_desc
+binary_desc[umu-run]="Runner program that launches your games"
+binary_desc[bwrap]="Sandbox utility"
+binary_desc[faugus-launcher]="The game launcher"
+binary_desc[switcherooctl]="Lists and allows user to switch GPUs"
+binary_desc[vulkaninfo]="Lists Vulkan rendering devices, less capable alternative to switcherooctl"
 
 # Define common directory paths for convenience
 home_dir="$HOME/.bwrap/Faugus"
@@ -37,7 +33,7 @@ shopt -s nullglob extglob
 
 # Reset important variables before start
 unset bwrap_args user_args pre_launch gpu_select \
-full_isolation verbose_args net_access create_dirs
+full_isolation verbose_args net_access create_dirs missing_required
 
 help_msg() {
 echo "A script that isolates Faugus and your games from the rest of the system using Bubblewrap
@@ -67,12 +63,12 @@ exit
 
 find_gpus() {
 # Check which gpu finder is available
-if [[ -n "${binary_list[switcherooctl]}" ]]; then
+if [[ -n "${binary_path[switcherooctl]}" ]]; then
 	tool_type=switcherooctl
-	tool_cmd=(${binary_list[switcherooctl]} list)
-elif [[ -n "${binary_list[vulkaninfo]}" ]]; then
+	tool_cmd=(${binary_path[switcherooctl]} list)
+elif [[ -n "${binary_path[vulkaninfo]}" ]]; then
 	tool_type=vulkaninfo
-	tool_cmd=(${binary_list[vulkaninfo]} --summary)
+	tool_cmd=(${binary_path[vulkaninfo]} --summary)
 fi
 
 # Arrays to store gpu names and id numbers
@@ -159,7 +155,7 @@ fi
 
 # Use the selected gpu for rendering games
 if [[ $tool_type == switcherooctl ]]; then
-	pre_launch+=(${binary_list[switcherooctl]} launch --gpu=${gpu_ids[$gpu_type$selection]})
+	pre_launch+=(${binary_path[switcherooctl]} launch --gpu=${gpu_ids[$gpu_type$selection]})
 elif [[ $tool_type == vulkaninfo && $has_nvidia -eq 1 ]]; then
 	bwrap_args+=(--setenv __NV_PRIME_RENDER_OFFLOAD)
 	if [[ $gpu_type == i ]]; then
@@ -358,6 +354,40 @@ while getopts 'oxwifcvh' flag; do
 done
 shift $((OPTIND - 1))
 
+# Dynamically assign path values to required binaries
+# instead of hardcoding them
+declare -Ag binary_path
+for i in "${binary_name[@]}"; do
+	binary_path[$i]=$(command -v $i)
+done
+
+# Check for missing binaries and continue/abort when required
+for i in "${!binary_status[@]}"; do
+	if [[ "${binary_status[$i]}" == r && -z "${binary_path[$i]}" ]]; then
+		echo -e "Missing required binary: $i\nDescription: ${binary_desc[$i]}"
+		missing_required=1
+	elif [[ "${binary_status[$i]}" == o && -z "${binary_path[$i]}" ]]; then
+		echo -e "Missing optional binary: $i\nDescription: ${binary_desc[$i]}"
+	fi
+done
+if [[ $missing_required -eq 1 ]]; then
+	exit
+fi
+
+# Store user and group id
+uid=$(id -u)
+gid=$(id -g)
+
+# Warn when running as root
+if [[ $uid -eq 0 || $gid -eq 0 ]]; then
+	echo "WARNING: Running as root will fully expose device files!"
+	echo -ne "Continue? (y/n)\n> "
+	read -r i
+	if [[ $i != y ]]; then
+		exit
+	fi
+fi
+
 # Bind dirs required for sandbox functionality
 apply_defined_dirs
 
@@ -367,8 +397,8 @@ if [[ $net_access -eq 0 ]]; then
 fi
 
 # Check if umu is available
-if [[ -n ${binary_list[umu-run]} ]]; then
-	bwrap_args+=(--ro-bind-try ${binary_list[umu-run]} $sandbox_umu)
+if [[ -n ${binary_path[umu-run]} ]]; then
+	bwrap_args+=(--ro-bind-try ${binary_path[umu-run]} $sandbox_umu)
 elif [[ ! -s $local_umu ]]; then
 	rm -f $local_umu
 fi
@@ -401,7 +431,7 @@ fi
 
 # Warn user that igpu might not work on nvidia systems
 # without switcherooctl
-if [[ -z "${binary_list[switcherooctl]}" && $has_nvidia -eq 1 && $gpu_select == integrated ]]; then
+if [[ -z "${binary_path[switcherooctl]}" && $has_nvidia -eq 1 && $gpu_select == integrated ]]; then
 	echo "NOTE: iGPU might not work on NVIDIA systems without switcherooctl"
 fi
 
@@ -412,13 +442,13 @@ if [[ $verbose_args -eq 1 ]]; then
 	echo -e "\n=== PRELAUNCH ARGS ==="
 	echo "${pre_launch[@]}"
 	echo -e "\n=== LAUNCH ARGS (BINARY) ==="
-	echo "\${pre_launch[@]} ${binary_list[bwrap]} \${bwrap_args[@]} ${binary_list[faugus-launcher]} && exit"
+	echo "\${pre_launch[@]} ${binary_path[bwrap]} \${bwrap_args[@]} ${binary_path[faugus-launcher]} && exit"
 	echo -e "\n=== LAUNCH ARGS (APPIMAGE) ==="
-	echo "\${pre_launch[@]} ${binary_list[bwrap]} \${bwrap_args[@]} ${binary_list[faugus-launcher]} --appimage-extract-and-run && exit"
+	echo "\${pre_launch[@]} ${binary_path[bwrap]} \${bwrap_args[@]} ${binary_path[faugus-launcher]} --appimage-extract-and-run && exit"
 	echo ""
 fi
 
 # Isolates Faugus with bubblewrap
 # If first command fails, rerun as an appimage
-"${pre_launch[@]}" "${binary_list[bwrap]}" "${bwrap_args[@]}" "${binary_list[faugus-launcher]}" && exit
-"${pre_launch[@]}" "${binary_list[bwrap]}" "${bwrap_args[@]}" "${binary_list[faugus-launcher]}" --appimage-extract-and-run && exit
+"${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" && exit
+"${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" --appimage-extract-and-run && exit
