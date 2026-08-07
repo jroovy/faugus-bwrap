@@ -3,10 +3,10 @@ script_name="${0##*/}"
 
 # Dynamically assign path values to required binaries
 # instead of hardcoding them
-umu=$(command -v umu-run)
-bwrap=$(command -v bwrap)
-faugus=$(command -v faugus-launcher)
-switcherooctl=$(command -v switcherooctl)
+declare -Ag binary_list
+for i in umu-run bwrap faugus-launcher switcherooctl vulkaninfo; do
+	binary_list[$i]=$(command -v $i)
+done
 
 # Store user and group id
 uid=$(id -u)
@@ -66,6 +66,15 @@ exit
 }
 
 find_gpus() {
+# Check which gpu finder is available
+if [[ -n "${binary_list[switcherooctl]}" ]]; then
+	tool_type=switcherooctl
+	tool_cmd=(${binary_list[switcherooctl]} list)
+elif [[ -n "${binary_list[vulkaninfo]}" ]]; then
+	tool_type=vulkaninfo
+	tool_cmd=(${binary_list[vulkaninfo]} --summary)
+fi
+
 # Arrays to store gpu names and id numbers
 declare -Ag gpu_ids
 declare -Ag gpu_names
@@ -78,27 +87,30 @@ igpu_counter=0
 dgpu_counter=0
 
 while IFS= read -r line; do
-	# Find gpu ID number
-	if [[ "$line" =~ Device:[[:space:]]*([0-9]+) ]]; then
+	# Find gpu ID number (switcherooctl || vulkaninfo)
+	if [[ "$line" =~ Device:[[:space:]]*([0-9]+) || "$line" =~ GPU([0-9]+): ]]; then
 		gpu_id="${BASH_REMATCH[1]}"
 	fi
 
-	# Get the gpu type
-	if [[ "$line" =~ Discrete:[[:space:]]*(yes|no) ]]; then
-		if [[ ${BASH_REMATCH[1]} == yes ]]; then
+	# Get the gpu type (switcherooctl || vulkaninfo)
+	if [[ "$line" =~ Discrete:[[:space:]]*(yes|no) || "$line" =~ (INTEGRATED|DISCRETE)_GPU ]]; then
+		if [[ ${BASH_REMATCH[1]} =~ (^yes$|DISCRETE) ]]; then
 			gpu_type=d
 		else
 			gpu_type=i
 		fi
 	fi
 
-	# Get the gpu name
-	if [[ "$line" =~ Name:[[:space:]]*(.+) ]]; then
+	# Get the gpu name (switcherooctl || vulkaninfo)
+	if [[ "$line" =~ Name:[[:space:]]*(.+) || "$line" =~ deviceName[[:space:]]*=[[:space:]]*(.*) ]]; then
 		gpu_name="${BASH_REMATCH[1]}"
+		if [[ "$gpu_name" =~ NVIDIA ]]; then
+			has_nvidia=1
+		fi
 	fi
 
 	# Add gathered values to the gpu lists
-	if [[ -n $gpu_type && -n $gpu_name && -n $gpu_id ]]; then
+	if [[ -n $gpu_id && -n $gpu_type && -n $gpu_name ]]; then
 		if [[ $gpu_type == i ]]; then
 			(( igpu_counter++ ))
 			gpu_ids["i$igpu_counter"]=$gpu_id
@@ -110,7 +122,7 @@ while IFS= read -r line; do
 		fi
 		unset gpu_type gpu_name gpu_id
 	fi
-done < <($switcherooctl list 2> /dev/null)
+done < <("${tool_cmd[@]}" 2> /dev/null)
 }
 
 select_gpu() {
@@ -146,7 +158,11 @@ if [[ -z "${gpu_names[$gpu_type$selection]}" ]]; then
 fi
 
 # Use the selected gpu for rendering games
-pre_launch+=($switcherooctl launch --gpu=${gpu_ids[$gpu_type$selection]})
+if [[ $tool_type == switcherooctl ]]; then
+	pre_launch+=(${binary_list[switcherooctl]} launch --gpu=${gpu_ids[$gpu_type$selection]})
+elif [[ $tool_type == vulkaninfo && $has_nvidia -eq 1 && gpu_type == i ]]; then
+	bwrap_args+=(--setenv __NV_PRIME_RENDER_OFFLOAD 0)
+fi
 bwrap_args+=(--setenv DRI_PRIME "${gpu_ids[$gpu_type$selection]}!")
 }
 
@@ -385,13 +401,13 @@ if [[ $verbose_args -eq 1 ]]; then
 	echo -e "\n=== PRELAUNCH ARGS ==="
 	echo "${pre_launch[@]}"
 	echo -e "\n=== LAUNCH ARGS (BINARY) ==="
-	echo "\${pre_launch[@]} $bwrap \${bwrap_args[@]} $faugus && exit"
+	echo "\${pre_launch[@]} ${binary_list[bwrap]} \${bwrap_args[@]} ${binary_list[faugus-launcher]} && exit"
 	echo -e "\n=== LAUNCH ARGS (APPIMAGE) ==="
-	echo "\${pre_launch[@]} $bwrap \${bwrap_args[@]} $faugus --appimage-extract-and-run && exit"
+	echo "\${pre_launch[@]} ${binary_list[bwrap]} \${bwrap_args[@]} ${binary_list[faugus-launcher]} --appimage-extract-and-run && exit"
 	echo ""
 fi
 
 # Isolates Faugus with bubblewrap
 # If first command fails, rerun as an appimage
-"${pre_launch[@]}" "$bwrap" "${bwrap_args[@]}" "$faugus" && exit
-"${pre_launch[@]}" "$bwrap" "${bwrap_args[@]}" "$faugus" --appimage-extract-and-run && exit
+"${pre_launch[@]}" "${binary_list[bwrap]}" "${bwrap_args[@]}" "${binary_list[faugus-launcher]}" && exit
+"${pre_launch[@]}" "${binary_list[bwrap]}" "${bwrap_args[@]}" "${binary_list[faugus-launcher]}" --appimage-extract-and-run && exit
