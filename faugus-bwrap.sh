@@ -208,6 +208,9 @@ $conf_dir/MangoHud/MangoHud.conf
 # Required bind for proton functionality
 $local_dir/Steam/compatibilitytools.d
 
+# Required bind for winetricks storage
+$cache_dir/winetricks
+
 # Theming support (gtk/qt+kde)
 $conf_dir/{gtk{rc{,-2.0},-{2..4}.0},kdeglobals}
 )
@@ -293,6 +296,7 @@ if [[ $full_isolation -eq 1 ]]; then
 	required_mounts+=("${isolated_mounts[@]}")
 else
 	local_regex="$local_dir/*"
+	cache_regex="$cache_dir/winetricks*"
 	required_mounts+=("${integrated_mounts[@]}")
 fi
 
@@ -302,7 +306,7 @@ conf_regex="$conf_dir/!(MangoHud*|gtk*|kde*|qt*)"
 for i in "${required_mounts[@]}"; do
 	case "$i" in
 		/dev/*) bwrap_args+=(--dev-bind-try);;
-		$conf_regex|$local_regex)
+		$cache_regex|$conf_regex|$local_regex)
 			bwrap_args+=(--bind-try);;
 		*) bwrap_args+=(--ro-bind-try);;
 	esac
@@ -389,7 +393,8 @@ apply_defined_dirs
 
 # Create isolated home directory and required shared dirs
 mkdir -p $home_dir $conf_dir/faugus-launcher/components \
-$local_dir/{Steam/compatibilitytools.d,umu}
+$local_dir/{Steam/compatibilitytools.d,umu} \
+$cache_dir/winetricks
 
 # Grant/deny network access
 if [[ $net_access -eq 0 ]]; then
