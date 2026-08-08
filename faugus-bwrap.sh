@@ -1,33 +1,6 @@
 #!/usr/bin/env bash
 script_name="${0##*/}"
 
-# Define binary names
-binary_name=(
-umu-run bwrap faugus-launcher switcherooctl vulkaninfo
-)
-declare -Ag binary_status
-binary_status[umu-run]=o; binary_status[bwrap]=r;
-binary_status[faugus-launcher]=r; binary_status[switcherooctl]=o;
-binary_status[vulkaninfo]=o;
-
-# Define binary descriptions
-declare -Ag binary_desc
-binary_desc[umu-run]="Runner program that launches your games"
-binary_desc[bwrap]="Sandbox utility"
-binary_desc[faugus-launcher]="The game launcher"
-binary_desc[switcherooctl]="Lists and allows user to switch GPUs"
-binary_desc[vulkaninfo]="Lists Vulkan rendering devices, less capable alternative to switcherooctl"
-
-# Define common directory paths for convenience
-home_dir="$HOME/.bwrap/Faugus"
-conf_dir="$HOME/.config"
-cache_dir="$HOME/.cache"
-local_dir="$HOME/.local/share"
-local_umu="$home_dir/.local/share/faugus-launcher/umu-run"
-sandbox_umu="$local_dir/faugus-launcher/umu-run"
-sandbox_conf="$home_dir/.config"
-sandbox_local="$home_dir/.local/share"
-
 # Extra shell options for proper functionality of regexes/expansions
 shopt -s nullglob extglob
 
@@ -60,6 +33,21 @@ Usage:
 $script_name <options>"
 exit
 }
+
+# Parse options given by user
+while getopts 'oxwifcvh' flag; do
+	case $flag in
+		o) net_access=1;;
+		x) XDG_SESSION_TYPE=x11;;
+		w) XDG_SESSION_TYPE=wayland;;
+		i) gpu_select=integrated;;
+		f) full_isolation=1;;
+		c) create_dirs=1;;
+		v) verbose_args=1;;
+		h|*) help_msg;;
+	esac
+done
+shift $((OPTIND - 1))
 
 find_gpus() {
 # Check which gpu finder is available
@@ -335,24 +323,32 @@ for (( i=0; i<${#user_args[@]}; i++ )); do
 done
 }
 
-# Create isolated home directory and required shared dirs
-mkdir -p $home_dir $conf_dir/faugus-launcher/components \
-$local_dir/{Steam/compatibilitytools.d,umu}
+# Define binary names
+binary_name=(
+umu-run bwrap faugus-launcher switcherooctl vulkaninfo
+)
+declare -Ag binary_status
+binary_status[umu-run]=o; binary_status[bwrap]=r;
+binary_status[faugus-launcher]=r; binary_status[switcherooctl]=o;
+binary_status[vulkaninfo]=o;
 
-# Parse options given by user
-while getopts 'oxwifcvh' flag; do
-	case $flag in
-		o) net_access=1;;
-		x) XDG_SESSION_TYPE=x11;;
-		w) XDG_SESSION_TYPE=wayland;;
-		i) gpu_select=integrated;;
-		f) full_isolation=1;;
-		c) create_dirs=1;;
-		v) verbose_args=1;;
-		h|*) help_msg;;
-	esac
-done
-shift $((OPTIND - 1))
+# Define binary descriptions
+declare -Ag binary_desc
+binary_desc[umu-run]="Runner program that launches your games"
+binary_desc[bwrap]="Sandbox utility"
+binary_desc[faugus-launcher]="The game launcher"
+binary_desc[switcherooctl]="Lists and allows user to switch GPUs"
+binary_desc[vulkaninfo]="Lists Vulkan rendering devices, less capable alternative to switcherooctl"
+
+# Define common directory paths for convenience
+home_dir="$HOME/.bwrap/Faugus"
+conf_dir="$HOME/.config"
+cache_dir="$HOME/.cache"
+local_dir="$HOME/.local/share"
+local_umu="$home_dir/.local/share/faugus-launcher/umu-run"
+sandbox_umu="$local_dir/faugus-launcher/umu-run"
+sandbox_conf="$home_dir/.config"
+sandbox_local="$home_dir/.local/share"
 
 # Dynamically assign path values to required binaries
 # instead of hardcoding them
@@ -390,6 +386,10 @@ fi
 
 # Bind dirs required for sandbox functionality
 apply_defined_dirs
+
+# Create isolated home directory and required shared dirs
+mkdir -p $home_dir $conf_dir/faugus-launcher/components \
+$local_dir/{Steam/compatibilitytools.d,umu}
 
 # Grant/deny network access
 if [[ $net_access -eq 0 ]]; then
