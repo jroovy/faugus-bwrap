@@ -243,21 +243,27 @@ define_user_dirs() {
 # Normal mounts are for games you want visible to
 # everything in your home folder
 normal_user_mounts=(
-$HOME/{Games,Faugus}{,}
+# $HOME/{Games,Faugus}{,}
 )
 
 # Isolated mounts are for games you want isolated
 # from the rest of your home folder
 isolated_user_mounts=(
-$HOME/Faugus{/.isolated,}
-$HOME/Games{/.isolated,}
+# $HOME/Faugus{/.isolated,}
+# $HOME/Games{/.isolated,}
 )
 
 # Shared mounts are for games you want accessible on both modes
 # e.g., removable drives
 shared_user_mounts=(
-{,/run}/media/$USER{,}
+# {,/run}/media/$USER{,}
 )
+
+# Further user mounts defined in external files
+# File contents must also follow above format of: source_dir destination_dir
+for i in {normal,isolated,shared}_user_mounts; do
+	eval "$i+=($(< $script_conf/$i.txt))"
+done
 }
 
 create_user_dirs() {
@@ -349,6 +355,7 @@ home_dir="$HOME/.bwrap/Faugus"
 conf_dir="$HOME/.config"
 cache_dir="$HOME/.cache"
 local_dir="$HOME/.local/share"
+script_conf="$conf_dir/faugus-bwrap"
 local_umu="$home_dir/.local/share/faugus-launcher/umu-run"
 sandbox_umu="$local_dir/faugus-launcher/umu-run"
 sandbox_conf="$home_dir/.config"
