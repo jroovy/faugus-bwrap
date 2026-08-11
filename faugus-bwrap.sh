@@ -212,7 +212,8 @@ $local_dir/Steam/compatibilitytools.d
 $cache_dir/winetricks
 
 # Theming support (gtk/qt+kde)
-$conf_dir/{gtk{rc{,-+([0-9]).0},-+([0-9]).0},kdeglobals}
+# Qt themeing in case faugus switch to qt
+$conf_dir/{gtk{rc{,-+([0-9]).0},-+([0-9]).0},kdeglobals,qt+([0-9])ct,Kvantum}
 )
 }
 
