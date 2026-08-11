@@ -192,8 +192,9 @@ required_mounts=(
 /etc/{fonts,resolv.conf,passwd,group,machine-id,ld.so.cache,pki}
 
 # Bind required filesystem directories
-/{usr/!(local|sbin)\
-,lib{,64},bin,sys/{dev{,ices},class,bus},run/udev}
+/{bin,lib*,usr/{bin,lib*,share}\
+,sys/{dev{,ices},class,bus}\
+,run/udev/{data,{,static_node_}tags}}
 
 # Bind required user xdg sockets
 $XDG_RUNTIME_DIR/\
