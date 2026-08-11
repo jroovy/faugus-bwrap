@@ -212,7 +212,7 @@ $local_dir/Steam/compatibilitytools.d
 $cache_dir/winetricks
 
 # Theming support (gtk/qt+kde)
-$conf_dir/{gtk{rc{,-2.0},-{2..4}.0},kdeglobals}
+$conf_dir/{gtk{rc{,-+([0-9]).0},-+([0-9]).0},kdeglobals}
 )
 }
 
@@ -277,7 +277,6 @@ full_dir_list=(
 for (( i=0; i<${#full_dir_list[@]}; i+=2 )); do
 	current_dir="${full_dir_list[i]}"
 	if [[ "$current_dir" =~ ^((/(run/)?media/[^/]+/[^/]+)) ]]; then
-		echo "${BASH_REMATCH[1]}"
 		if [[ -d "${BASH_REMATCH[1]}" ]]; then
 			mkdir -p "$current_dir"
 		fi
