@@ -306,7 +306,7 @@ else
 	required_mounts+=("${integrated_mounts[@]}")
 fi
 
-conf_regex="$conf_dir/!(MangoHud*|gtk*|kde*|qt*)"
+conf_regex="$conf_dir/!(MangoHud*|gtk*|kde*|qt*|Kvantum*)"
 
 # Add required mounts to bwrap_args
 for i in "${required_mounts[@]}"; do
