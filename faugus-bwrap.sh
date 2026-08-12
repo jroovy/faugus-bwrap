@@ -6,7 +6,8 @@ shopt -s nullglob extglob
 
 # Reset important variables before start
 unset bwrap_args user_args pre_launch gpu_select \
-full_isolation verbose_args net_access create_dirs missing_required
+full_isolation verbose_args net_access \
+create_dirs missing_required no_gpu
 
 help_msg() {
 echo "A script that isolates Faugus and your games from the rest of the system using Bubblewrap
@@ -57,6 +58,8 @@ if [[ -n "${binary_path[switcherooctl]}" ]]; then
 elif [[ -n "${binary_path[vulkaninfo]}" ]]; then
 	tool_type=vulkaninfo
 	tool_cmd=(${binary_path[vulkaninfo]} --summary)
+else
+	no_gpu=1
 fi
 
 # Arrays to store gpu names and id numbers
@@ -136,23 +139,24 @@ if [[ $gpu_count -gt 1 ]]; then
 fi
 
 # Ensure user doesn't pick nonexistent gpu
-if [[ -z "${gpu_names[$gpu_type$selection]}" ]]; then
+if [[ -z "${gpu_names[$gpu_type$selection]}" && $no_gpu -eq 0 ]]; then
 	echo "Invalid gpu selection!"
-	exit
 fi
 
 # Use the selected gpu for rendering games
-if [[ $tool_type == switcherooctl ]]; then
-	pre_launch+=(${binary_path[switcherooctl]} launch --gpu=${gpu_ids[$gpu_type$selection]})
-elif [[ $tool_type == vulkaninfo && $has_nvidia -eq 1 ]]; then
-	bwrap_args+=(--setenv __NV_PRIME_RENDER_OFFLOAD)
-	if [[ $gpu_type == i ]]; then
-		bwrap_args+=(0)
-	else
-		bwrap_args+=(1)
+if [[ $no_gpu -eq 0 ]]; then
+	if [[ $tool_type == switcherooctl ]]; then
+		pre_launch+=(${binary_path[switcherooctl]} launch --gpu=${gpu_ids[$gpu_type$selection]})
+	elif [[ $tool_type == vulkaninfo && $has_nvidia -eq 1 ]]; then
+		bwrap_args+=(--setenv __NV_PRIME_RENDER_OFFLOAD)
+		if [[ $gpu_type == i ]]; then
+			bwrap_args+=(0)
+		else
+			bwrap_args+=(1)
+		fi
 	fi
+	bwrap_args+=(--setenv DRI_PRIME "${gpu_ids[$gpu_type$selection]}!")
 fi
-bwrap_args+=(--setenv DRI_PRIME "${gpu_ids[$gpu_type$selection]}!")
 }
 
 apply_required_args() {
