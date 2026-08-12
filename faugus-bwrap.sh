@@ -406,7 +406,7 @@ apply_defined_dirs
 # Create isolated home directory and required shared dirs
 mkdir -p $home_dir $conf_dir/faugus-launcher/components \
 $local_dir/{Steam/compatibilitytools.d,umu} \
-$cache_dir/winetricks
+$cache_dir/winetricks $script_conf
 
 # Grant/deny network access
 if [[ $net_access -eq 0 ]]; then
