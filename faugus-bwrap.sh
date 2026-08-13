@@ -304,7 +304,7 @@ define_user_dirs
 # Add required isolated mounts
 if [[ $full_isolation -eq 1 ]]; then
 	local_regex="$local_dir/!([Ss]team*)"
-	required_mounts+=("${isolated_mounts[@]}")
+	bwrap_args+=("${isolated_mounts[@]}")
 else
 	local_regex="$local_dir/*"
 	cache_regex="$cache_dir/winetricks*"
