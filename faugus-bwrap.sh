@@ -236,8 +236,13 @@ $conf_dir/faugus-launcher
 $local_dir/{umu,faugus-launcher}
 )
 
+integrated_mounts_manual=(
+--tmpfs $XDG_RUNTIME_DIR/dconf
+)
+
 # Required mounts for isolation mode
-isolated_mounts=(
+isolated_mounts=()
+isolated_mounts_manual=(
 # Mount steamrt dir as readonly with overlayfs
 --overlay-src $local_dir/umu
 --tmp-overlay $local_dir/umu
@@ -307,11 +312,13 @@ define_user_dirs
 # Add required isolated mounts
 if [[ $full_isolation -eq 1 ]]; then
 	local_regex="$local_dir/!([Ss]team*)"
-	bwrap_args+=("${isolated_mounts[@]}")
+	required_mounts+=("${isolated_mounts[@]}")
+	bwrap_args+=("${isolated_mounts_manual[@]}")
 else
 	local_regex="$local_dir/*"
 	cache_regex="$cache_dir/winetricks*"
 	required_mounts+=("${integrated_mounts[@]}")
+	bwrap_args+=("${integrated_mounts_manual[@]}")
 fi
 
 conf_regex="$conf_dir/!(MangoHud*|gtk*|kde*|qt*|Kvantum*)"
