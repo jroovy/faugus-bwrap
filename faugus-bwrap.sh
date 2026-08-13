@@ -193,7 +193,7 @@ required_mounts=(
 /dev/{{,u}input,shm,ntsync,snd,dri,hidraw*,nvidia*}
 
 # Bind required stuff for umu to function
-/etc/{fonts,resolv.conf,passwd,group,machine-id,ld.so.cache,pki}
+/etc/{fonts,resolv.conf,passwd,group,machine-id,ld.so.cache,pki,ssl,ca-certificates}
 
 # Bind required filesystem directories
 /{bin,lib*,usr/{bin,lib*,share}\
