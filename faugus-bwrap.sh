@@ -236,9 +236,7 @@ $conf_dir/faugus-launcher
 $local_dir/{umu,faugus-launcher}
 )
 
-integrated_mounts_manual=(
---tmpfs $XDG_RUNTIME_DIR/dconf
-)
+integrated_mounts_manual=()
 
 # Required mounts for isolation mode
 isolated_mounts=()
