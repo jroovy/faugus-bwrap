@@ -51,8 +51,11 @@ done
 shift $((OPTIND - 1))
 
 find_gpus() {
+# Check switcherooctl version
+switcheroo_ver="$(${binary_path[switcherooctl]} version)"
+
 # Check which gpu finder is available
-if [[ -n "${binary_path[switcherooctl]}" ]]; then
+if [[ -n "${binary_path[switcherooctl]}" && ${switcheroo_ver%.*} -ge 3 ]]; then
 	tool_type=switcherooctl
 	tool_cmd=(${binary_path[switcherooctl]} list)
 elif [[ -n "${binary_path[vulkaninfo]}" ]]; then
