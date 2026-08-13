@@ -199,7 +199,7 @@ required_mounts=(
 /etc/{fonts,resolv.conf,passwd,group,machine-id,ld.so.cache,pki,ssl,ca-certificates}
 
 # Bind required filesystem directories
-/{bin,lib*,usr/{bin,lib*,share}\
+/{{,s}bin,lib*,usr/{{,s}bin,lib*,share}\
 ,sys/{dev{,ices},class,bus}\
 ,run/udev/{data,{,static_node_}tags}}
 
