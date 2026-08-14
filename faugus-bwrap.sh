@@ -228,7 +228,6 @@ $conf_dir/{gtk{rc{,-+([0-9]).0},-+([0-9]).0},kdeglobals,qt+([0-9])ct,Kvantum}
 
 # List of overlay dirs
 required_overlays=(
-$local_dir/umu
 $XDG_RUNTIME_DIR/dconf
 )
 }
@@ -246,7 +245,10 @@ $local_dir/{umu,faugus-launcher}
 
 # Required mounts for isolation mode
 isolated_mounts=()
-integrated_mounts_manual=()
+integrated_mounts_manual=(
+--overlay-src $local_dir/umu
+--tmp-overlay $local_dir/umu
+)
 isolated_mounts_manual=()
 shared_mounts_manual=()
 }
