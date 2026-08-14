@@ -188,6 +188,11 @@ bwrap_args+=(
 
 # Query and set current gtk theme
 --setenv GTK_THEME $(gsettings get org.gnome.desktop.interface gtk-theme | tr -d "'")
+
+# Prevent file pickers from showing files outside sandbox
+--setenv GTK_USE_PORTAL 0
+--setenv GDK_DEBUG no-portals
+--setenv QT_NO_XDG_DESKTOP_PORTAL 1
 )
 }
 
