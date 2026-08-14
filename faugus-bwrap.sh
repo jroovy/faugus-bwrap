@@ -7,7 +7,7 @@ shopt -s nullglob extglob
 # Reset important variables before start
 unset bwrap_args user_args pre_launch gpu_select \
 full_isolation verbose_args net_access \
-create_dirs missing_required no_gpu
+create_dirs missing_required no_gpu debug_mode
 
 help_msg() {
 echo "A script that isolates Faugus and your games from the rest of the system using Bubblewrap
@@ -20,6 +20,7 @@ Options:
   -f = Run games in full isolation
   -c = Create user-defined directories that don't exist yet
   -v = Print launch arguments (verbose)
+  -d = Run any command in debug mode
   -h = Show this help message
 
 Note:
@@ -36,7 +37,7 @@ exit
 }
 
 # Parse options given by user
-while getopts 'oxwifcvh' flag; do
+while getopts 'oxwifcvdh' flag; do
 	case $flag in
 		o) net_access=1;;
 		x) XDG_SESSION_TYPE=x11;;
@@ -45,6 +46,7 @@ while getopts 'oxwifcvh' flag; do
 		f) full_isolation=1;;
 		c) create_dirs=1;;
 		v) verbose_args=1;;
+        d) debug_mode=1;;
 		h|*) help_msg;;
 	esac
 done
@@ -178,7 +180,7 @@ bwrap_args+=(
 --dev /dev
 --proc /proc
 
-# Create writable /tmp
+# Create required tmpfs
 --tmpfs /tmp
 
 # Isolate home dir to another folder
@@ -223,6 +225,12 @@ $cache_dir/winetricks
 # Qt themeing in case faugus switch to qt
 $conf_dir/{gtk{rc{,-+([0-9]).0},-+([0-9]).0},kdeglobals,qt+([0-9])ct,Kvantum}
 )
+
+# List of overlay dirs
+required_overlays=(
+$local_dir/umu
+$XDG_RUNTIME_DIR/dconf
+)
 }
 
 define_isolation_dirs() {
@@ -236,15 +244,11 @@ $conf_dir/faugus-launcher
 $local_dir/{umu,faugus-launcher}
 )
 
-integrated_mounts_manual=()
-
 # Required mounts for isolation mode
 isolated_mounts=()
-isolated_mounts_manual=(
-# Mount steamrt dir as readonly with overlayfs
---overlay-src $local_dir/umu
---tmp-overlay $local_dir/umu
-)
+integrated_mounts_manual=()
+isolated_mounts_manual=()
+shared_mounts_manual=()
 }
 
 # User-defined list of game directories
@@ -307,18 +311,21 @@ define_required_dirs
 define_isolation_dirs
 define_user_dirs
 
-# Add required isolated mounts
+# Add required isolated mounts and regexes
 if [[ $full_isolation -eq 1 ]]; then
 	local_regex="$local_dir/!([Ss]team*)"
 	required_mounts+=("${isolated_mounts[@]}")
+    user_args=("${isolated_user_mounts[@]}")
 	bwrap_args+=("${isolated_mounts_manual[@]}")
 else
 	local_regex="$local_dir/*"
 	cache_regex="$cache_dir/winetricks*"
 	required_mounts+=("${integrated_mounts[@]}")
+    user_args=("${normal_user_mounts[@]}")
 	bwrap_args+=("${integrated_mounts_manual[@]}")
 fi
-
+user_args+=("${shared_user_mounts[@]}")
+bwrap_args+=("${shared_mounts_manual[@]}")
 conf_regex="$conf_dir/!(MangoHud*|gtk*|kde*|qt*|Kvantum*)"
 
 # Add required mounts to bwrap_args
@@ -332,17 +339,14 @@ for i in "${required_mounts[@]}"; do
 	bwrap_args+=("$i"{,})
 done
 
-# Add user-defined isolated mounts
-if [[ $full_isolation -eq 1 ]]; then
-	user_args=("${isolated_user_mounts[@]}")
-else
-	user_args=("${normal_user_mounts[@]}")
-fi
-user_args+=("${shared_user_mounts[@]}")
-
-# Add user-defined mounts to final bwrap args
+# Add user-defined mounts to bwrap args
 for (( i=0; i<${#user_args[@]}; i++ )); do
 	bwrap_args+=(--bind-try "${user_args[i]}" "${user_args[i+=1]}")
+done
+
+# Add required overlay dirs
+for i in "${required_overlays[@]}"; do
+    bwrap_args+=(--overlay-src "$i" --tmp-overlay "$i")
 done
 }
 
@@ -473,7 +477,13 @@ if [[ $verbose_args -eq 1 ]]; then
 	echo ""
 fi
 
-# Isolates Faugus with bubblewrap
-# If first command fails, rerun as an appimage
-"${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" && exit
-"${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" --appimage-extract-and-run && exit
+# Run in debug mode if enabled
+if [[ $debug_mode -eq 1 ]]; then
+    echo -e "Run command:\n$@"
+    "${binary_path[bwrap]}" "${bwrap_args[@]}" "$@"; exit
+else
+    # Isolates Faugus with bubblewrap
+    # If first command fails, rerun as an appimage
+    "${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" && exit
+    "${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" --appimage-extract-and-run && exit
+fi
