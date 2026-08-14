@@ -245,11 +245,11 @@ $local_dir/{umu,faugus-launcher}
 
 # Required mounts for isolation mode
 isolated_mounts=()
-integrated_mounts_manual=(
+integrated_mounts_manual=()
+isolated_mounts_manual=(
 --overlay-src $local_dir/umu
 --tmp-overlay $local_dir/umu
 )
-isolated_mounts_manual=()
 shared_mounts_manual=()
 }
 
