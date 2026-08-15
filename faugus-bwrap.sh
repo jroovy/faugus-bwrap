@@ -187,7 +187,7 @@ bwrap_args+=(
 --bind $home_dir $HOME
 
 # Query and set current gtk theme
---setenv GTK_THEME $(gsettings get org.gnome.desktop.interface gtk-theme | tr -d "'")
+#--setenv GTK_THEME $(gsettings get org.gnome.desktop.interface gtk-theme | tr -d "'")
 
 # Prevent file pickers from showing files outside sandbox
 --setenv GTK_USE_PORTAL 0
