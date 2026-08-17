@@ -52,6 +52,18 @@ while getopts 'oxwifcvdh' flag; do
 done
 shift $((OPTIND - 1))
 
+check_process_user() {
+# Warn when running as root
+if [[ $uid -eq 0 || $gid -eq 0 ]]; then
+	echo "WARNING: Running as root will fully expose device files!"
+	echo -ne "Continue? (y/n)\n> "
+	read -r i
+	if [[ $i != y ]]; then
+		exit
+	fi
+fi
+}
+
 find_gpus() {
 # Check switcherooctl version
 switcheroo_ver="$(${binary_path[switcherooctl]} version)"
@@ -203,7 +215,8 @@ required_mounts=(
 /dev/{{,u}input,shm,ntsync,snd,dri,hidraw*,nvidia*}
 
 # Bind required stuff for umu to function
-/etc/{fonts,resolv.conf,passwd,group,machine-id,ld.so.cache,pki,ssl,ca-certificates}
+#/etc/{fonts,resolv.conf,passwd,group,machine-id,ld.so.cache,pki,ssl,ca-certificates}
+/etc/{fonts,resolv.conf,passwd,ld.so.cache,ssl}
 
 # Bind required filesystem directories
 /{{,s}bin,lib*,usr/{{,s}bin,lib*,share}\
@@ -235,6 +248,14 @@ $conf_dir/{gtk{rc{,-+([0-9]).0},-+([0-9]).0},kdeglobals,qt+([0-9])ct,Kvantum}
 required_overlays=(
 $XDG_RUNTIME_DIR/dconf
 )
+}
+
+define_dummy_files() {
+# Define dummy file content
+declare -Ag dummy_content
+dummy_content["etc/passwd"]="user:x:$uid:$gid:user:/home/user:/bin/bash"
+dummy_content["etc/group"]="user:x:$gid"
+dummy_content["etc/machine-id"]="00000000000000000000000000000000"
 }
 
 define_isolation_dirs() {
@@ -315,6 +336,7 @@ apply_required_args
 
 # Load defined dirs
 define_required_dirs
+define_dummy_files
 define_isolation_dirs
 define_user_dirs
 
@@ -355,73 +377,21 @@ done
 for i in "${required_overlays[@]}"; do
     bwrap_args+=(--overlay-src "$i" --tmp-overlay "$i")
 done
+
+# Bind dummy files/dirs
+for i in "${!dummy_content[@]}"; do
+	mkdir -p "$tmp_dir/${i%/*}"
+	echo "${dummy_content[$i]}" > "$tmp_dir/$i"
+	bwrap_args+=(--ro-bind-try "$tmp_dir/$i" "/$i")
+done
 }
 
-# Define binary names
-binary_name=(
-umu-run bwrap faugus-launcher switcherooctl vulkaninfo
-)
-declare -Ag binary_status
-binary_status[umu-run]=o; binary_status[bwrap]=r;
-binary_status[faugus-launcher]=r; binary_status[switcherooctl]=o;
-binary_status[vulkaninfo]=o;
+cleanup_files() {
+# Delete temp dir when done
+rm -rf "$tmp_dir"
+}
 
-# Define binary descriptions
-declare -Ag binary_desc
-binary_desc[umu-run]="Runner program that launches your games"
-binary_desc[bwrap]="Sandbox utility"
-binary_desc[faugus-launcher]="The game launcher"
-binary_desc[switcherooctl]="Lists and allows user to switch GPUs"
-binary_desc[vulkaninfo]="Lists Vulkan rendering devices, less capable alternative to switcherooctl"
-
-# Define common directory paths for convenience
-home_dir="$HOME/.bwrap/Faugus"
-conf_dir="$HOME/.config"
-cache_dir="$HOME/.cache"
-local_dir="$HOME/.local/share"
-script_conf="$conf_dir/faugus-bwrap"
-local_umu="$home_dir/.local/share/faugus-launcher/umu-run"
-sandbox_umu="$local_dir/faugus-launcher/umu-run"
-sandbox_conf="$home_dir/.config"
-sandbox_local="$home_dir/.local/share"
-
-# Dynamically assign path values to required binaries
-# instead of hardcoding them
-declare -Ag binary_path
-for i in "${binary_name[@]}"; do
-	binary_path[$i]=$(command -v $i)
-done
-
-# Check for missing binaries and continue/abort when required
-for i in "${!binary_status[@]}"; do
-	if [[ "${binary_status[$i]}" == r && -z "${binary_path[$i]}" ]]; then
-		echo -e "Missing required binary: $i\nDescription: ${binary_desc[$i]}"
-		missing_required=1
-	elif [[ "${binary_status[$i]}" == o && -z "${binary_path[$i]}" ]]; then
-		echo -e "Missing optional binary: $i\nDescription: ${binary_desc[$i]}"
-	fi
-done
-if [[ $missing_required -eq 1 ]]; then
-	exit
-fi
-
-# Store user and group id
-uid=$(id -u)
-gid=$(id -g)
-
-# Warn when running as root
-if [[ $uid -eq 0 || $gid -eq 0 ]]; then
-	echo "WARNING: Running as root will fully expose device files!"
-	echo -ne "Continue? (y/n)\n> "
-	read -r i
-	if [[ $i != y ]]; then
-		exit
-	fi
-fi
-
-# Bind dirs required for sandbox functionality
-apply_defined_dirs
-
+run_required_cmds() {
 # Create isolated home directory and required shared dirs
 mkdir -p $home_dir $conf_dir/faugus-launcher/components \
 $local_dir/{Steam/compatibilitytools.d,umu} \
@@ -483,14 +453,99 @@ if [[ $verbose_args -eq 1 ]]; then
 	echo "\${pre_launch[@]} ${binary_path[bwrap]} \${bwrap_args[@]} ${binary_path[faugus-launcher]} --appimage-extract-and-run && exit"
 	echo ""
 fi
+}
 
+run_faugus() {
 # Run in debug mode if enabled
 if [[ $debug_mode -eq 1 ]]; then
-    echo -e "Run command:\n$@"
-    "${binary_path[bwrap]}" "${bwrap_args[@]}" "$@"; exit
-else
-    # Isolates Faugus with bubblewrap
-    # If first command fails, rerun as an appimage
-    "${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" && exit
-    "${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" --appimage-extract-and-run && exit
+	echo -e "Run command:\n$@"
+	"${binary_path[bwrap]}" "${bwrap_args[@]}" "$@"; exit
+
+# Isolates Faugus with bubblewrap
+# If first command fails, rerun as an appimage
+elif "${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" \
+|| "${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" --appimage-extract-and-run; then
+    true
 fi
+}
+
+check_define_binaries() {
+# Define binary names
+binary_name=(
+umu-run bwrap faugus-launcher switcherooctl vulkaninfo mktemp
+)
+
+# Dynamically assign path values to required binaries
+# instead of hardcoding them
+declare -Ag binary_path
+for i in "${binary_name[@]}"; do
+	binary_path[$i]=$(command -v $i)
+done
+
+# Set importance level of binaries
+# o=optional, r=required
+declare -Ag binary_status
+binary_status[umu-run]=o binary_status[bwrap]=r
+binary_status[faugus-launcher]=r binary_status[switcherooctl]=o
+binary_status[vulkaninfo]=o binary_status[mktemp]=r
+
+# Define binary descriptions
+declare -Ag binary_desc
+binary_desc[umu-run]="Runner program that launches your games"
+binary_desc[bwrap]="Sandbox utility"
+binary_desc[faugus-launcher]="The game launcher"
+binary_desc[switcherooctl]="Lists and allows user to switch GPUs"
+binary_desc[vulkaninfo]="Lists Vulkan rendering devices, less capable alternative to switcherooctl"
+
+# Check for missing binaries and continue/abort when required
+for i in "${!binary_status[@]}"; do
+	if [[ "${binary_status[$i]}" == r && -z "${binary_path[$i]}" ]]; then
+		echo -e "Missing required binary: $i\nDescription: ${binary_desc[$i]}"
+		missing_required=1
+	elif [[ "${binary_status[$i]}" == o && -z "${binary_path[$i]}" ]]; then
+		echo -e "Missing optional binary: $i\nDescription: ${binary_desc[$i]}"
+	fi
+done
+if [[ $missing_required -eq 1 ]]; then
+	exit
+fi
+}
+
+define_script_vars() {
+# Define common directory paths for convenience
+tmp_dir="$(${binary_path[mktemp]} -d)"
+home_dir="$HOME/.bwrap/Faugus"
+conf_dir="$HOME/.config"
+cache_dir="$HOME/.cache"
+local_dir="$HOME/.local/share"
+script_conf="$conf_dir/faugus-bwrap"
+local_umu="$home_dir/.local/share/faugus-launcher/umu-run"
+sandbox_umu="$local_dir/faugus-launcher/umu-run"
+sandbox_conf="$home_dir/.config"
+sandbox_local="$home_dir/.local/share"
+
+# Store user and group id
+uid=$(id -u)
+gid=$(id -g)
+}
+
+# Run cleanup function when exiting
+trap cleanup_files EXIT INT TERM
+
+# Check and assign paths to binaries
+check_define_binaries
+
+# Apply script-wide dirs
+define_script_vars
+
+# Verify script uid
+check_process_user
+
+# Bind dirs required for sandbox functionality
+apply_defined_dirs
+
+# Run required commands after binding
+run_required_cmds
+
+# Run faugus after doing everything above
+run_faugus
