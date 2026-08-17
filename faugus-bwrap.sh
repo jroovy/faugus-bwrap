@@ -20,7 +20,7 @@ Options:
   -f = Run games in full isolation
   -c = Create user-defined directories that don't exist yet
   -v = Print launch arguments (verbose)
-  -d = Run any command in debug mode
+  -d = Run any command within sandbox to diagnose issues
   -h = Show this help message
 
 Note:
@@ -215,8 +215,7 @@ required_mounts=(
 /dev/{{,u}input,shm,ntsync,snd,dri,hidraw*,nvidia*}
 
 # Bind required stuff for umu to function
-#/etc/{fonts,resolv.conf,passwd,group,machine-id,ld.so.cache,pki,ssl,ca-certificates}
-/etc/{fonts,resolv.conf,passwd,ld.so.cache,ssl}
+/etc/{fonts,resolv.conf,ld.so.cache,ssl}
 
 # Bind required filesystem directories
 /{{,s}bin,lib*,usr/{{,s}bin,lib*,share}\
@@ -460,13 +459,12 @@ run_faugus() {
 if [[ $debug_mode -eq 1 ]]; then
 	echo -e "Run command:\n$@"
 	"${binary_path[bwrap]}" "${bwrap_args[@]}" "$@"; exit
+fi
 
 # Isolates Faugus with bubblewrap
 # If first command fails, rerun as an appimage
-elif "${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" \
-|| "${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" --appimage-extract-and-run; then
-    true
-fi
+"${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" && exit
+"${pre_launch[@]}" "${binary_path[bwrap]}" "${bwrap_args[@]}" "${binary_path[faugus-launcher]}" --appimage-extract-and-run && exit
 }
 
 check_define_binaries() {
@@ -548,4 +546,4 @@ apply_defined_dirs
 run_required_cmds
 
 # Run faugus after doing everything above
-run_faugus
+run_faugus "$@"
